@@ -2,13 +2,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <SDL2/SDL.h>
+#include "array.h"
 #include "display.h"
 #include "vector.h"
 #include "mesh.h"
 #include "triangle.h"
 
 
-triangle_t triangles_to_render[N_MESH_FACES];
+// dynamic array of triangles to render
+triangle_t* triangles_to_render = NULL;
 
 const int N_POINTS = 9*9*9;
 vec3_t cube_points[N_POINTS];
@@ -20,11 +22,6 @@ vec3_t camera_position = {
     .z = -5
 };
 
-vec3_t cube_rotation = {
-    .x = 0,
-    .y = 0,
-    .z = 0
-};
 
 float fov_factor = 640;
 
@@ -47,6 +44,28 @@ void setup(void) {
         window_width,
         window_height
     );
+
+    // init the mesh
+    //load_cube_mesh_data();
+    load_obj_file_data("./assets/suzanne.obj");
+
+    vec2_t a = {2.5, 6.4};
+    vec2_t aa = {5.2, 4.6};
+    
+    vec3_t b = {-2.2, 1.4, 1.0};
+    vec3_t bb = {2.4, 5.4, -3.0};
+    
+    float a_len = vec2_length(a);
+    float b_len = vec3_length(b);
+
+    vec2_t add_aaa = vec2_add(a,aa);
+    vec3_t add_bbb = vec3_add(b,bb);
+    vec2_t sub_aaa = vec2_sub(a,aa);
+    vec3_t sub_bbb = vec3_sub(b,bb);
+    vec3_t bbb_cross = vec3_cross(b, bb);
+    float bbb_dot = vec3_dot(b,bb);
+
+    printf("--- %f %f %f %f %f %f %f %f \n", a_len, b_len, add_aaa.x, add_bbb.x, sub_aaa.x, sub_bbb.x, bbb_cross.x, bbb_dot);
 
 }
 
@@ -98,24 +117,28 @@ void update(void) {
 
     previous_frame_time = SDL_GetTicks();
 
-    cube_rotation.x += 0.01;
-    cube_rotation.y += 0.01;
-    cube_rotation.z += 0.01;
+    // init the tri arr
+    triangles_to_render = NULL;
 
-    for(int i=0; i < N_MESH_FACES; i++){
-        face_t mesh_face = mesh_faces[i];
+    //mesh.rotation.x += 0.01;
+    mesh.rotation.y += 0.01;
+    // mesh.rotation.z += 0.01;
+
+    int num_faces = array_length(mesh.faces);
+    for(int i=0; i < num_faces; i++){
+        face_t mesh_face = mesh.faces[i];
         vec3_t  face_verts[3];
-        face_verts[0] = mesh_verticies[mesh_face.a -1];
-        face_verts[1] = mesh_verticies[mesh_face.b -1];
-        face_verts[2] = mesh_verticies[mesh_face.c -1];
+        face_verts[0] = mesh.verticies[mesh_face.a -1];
+        face_verts[1] = mesh.verticies[mesh_face.b -1];
+        face_verts[2] = mesh.verticies[mesh_face.c -1];
         
         triangle_t projected_triangle;
 
         for(int j =0; j < 3; j++){
             vec3_t transformed_vert = face_verts[j];
-            transformed_vert = vec3_rotate_x(transformed_vert, cube_rotation.x);
-            transformed_vert = vec3_rotate_y(transformed_vert, cube_rotation.y);
-            transformed_vert = vec3_rotate_z(transformed_vert, cube_rotation.z);
+            transformed_vert = vec3_rotate_x(transformed_vert, mesh.rotation.x);
+            transformed_vert = vec3_rotate_y(transformed_vert, mesh.rotation.y);
+            transformed_vert = vec3_rotate_z(transformed_vert, mesh.rotation.z);
 
             // translate verts back in z from the camera
             transformed_vert.z -= camera_position.z;
@@ -131,19 +154,19 @@ void update(void) {
             
         }
 
-        triangles_to_render[i] = projected_triangle;
+        array_push(triangles_to_render, projected_triangle);
+        //triangles_to_render[i] = projected_triangle;
     }
 }
 
 
 void render(void) {
-    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // rgba
-    //SDL_RenderClear(renderer);
+    
+    draw_grid();
 
-    //draw_grid();
-    //draw_rect(300,200, 300, 150, 0xFFFF00FF);
+    int num_triangles = array_length(triangles_to_render);
 
-    for(int i=0; i < N_MESH_FACES; i++){
+    for(int i=0; i < num_triangles; i++){
         triangle_t triangle = triangles_to_render[i];
 
         // draw verts
@@ -163,12 +186,22 @@ void render(void) {
         );
     }
 
+    //clear tri arr
+    array_free(triangles_to_render);
+
     render_color_buffer();
     clear_color_buffer(0xFFFFFF00);
 
     SDL_RenderPresent(renderer);
 }
 
+// free up all memory
+void free_resources(void){
+    printf("cleaning up \n");
+    array_free(mesh.verticies);
+    array_free(mesh.faces);
+    free(color_buffer);
+}
 
 
 int main(void){
@@ -184,6 +217,7 @@ int main(void){
         render();
     }
     destroy_window();
+    free_resources();
 
     return 0;
 }

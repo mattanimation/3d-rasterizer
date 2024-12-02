@@ -53,8 +53,6 @@ bool initialize_window(void){
 
 
 void destroy_window(void){
-    printf("cleaning up \n");
-    free(color_buffer);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

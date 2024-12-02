@@ -1,6 +1,34 @@
 #include <math.h>
 #include "vector.h"
 
+
+// float Q_rsqrt( float number ) {
+// 	long i;
+// 	float x2, y;
+// 	const float threehalfs = 1.5F;
+
+// 	x2 = number * 0.5F;
+// 	y  = number;
+// 	i  = * ( long * ) &y;						// evil floating point bit level hacking
+// 	i  = 0x5f3759df - ( i >> 1 );               // what the fuck?
+// 	y  = * ( float * ) &i;
+// 	y  = y * ( threehalfs - ( x2 * y * y ) );   // 1st iteration
+// //	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
+
+// 	return y;
+// }
+
+float Q_rsqrt(float number){
+  union {
+    float    f;
+    uint32_t i;
+  } conv = { .f = number };
+  conv.i  = 0x5f3759df - (conv.i >> 1);
+  conv.f *= 1.5F - (number * 0.5F * conv.f * conv.f);
+  return conv.f;
+}
+
+
 ///////////////////////////////////////////
 // vec2 funcs
 ///////////////////////////////////////////
@@ -38,6 +66,14 @@ vec2_t vec2_div(vec2_t v, float factor){
 float vec2_dot(vec2_t a, vec2_t b){
 	return (a.x * b.x) + (a.y * b.y);
 }
+void vec2_normalize(vec2_t* v){
+	// another way if could have been done
+	//*v = vec2_div(*v,vec2_length(*v));
+	
+	float l = vec2_length(*v);
+	v->x /= l;
+	v->y /= l; 
+}
 
 
 ///////////////////////////////////////////
@@ -46,6 +82,10 @@ float vec2_dot(vec2_t a, vec2_t b){
 float vec3_length(vec3_t v){
 	return sqrt(v.x* v.x + v.y * v.y + v.z * v.z);
 }
+float vec3_length_fast(vec3_t v){
+	return Q_rsqrt(v.x* v.x + v.y * v.y + v.z * v.z);
+}
+
 vec3_t vec3_add(vec3_t a, vec3_t b){
 	vec3_t result = {
 		.x = a.x + b.x,
@@ -93,7 +133,23 @@ vec3_t vec3_cross(vec3_t a, vec3_t b){
 // a signed -1.0 - 1.0 value
 // aligned = 1, perpendicular is 0 and -1 is opposite
 float vec3_dot(vec3_t a, vec3_t b){
-	return (a.x * b.x) + (a.y * b.y) * (a.z * b.z);
+	return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+void vec3_normalize(vec3_t* a){
+	// another way if could have been done
+	//*v = vec3_div(*v, vec3_length(*v));
+	float l = vec3_length(*a);
+	a->x /= l;
+	a->y /= l; 
+	a->z /= l;
+}
+
+void vec3_normalize_fast(vec3_t* a){
+	float l = vec3_length_fast(*a);
+	a->x *= l;
+	a->y *= l; 
+	a->z *= l;
 }
 
 

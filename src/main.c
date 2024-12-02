@@ -16,11 +16,7 @@ const int N_POINTS = 9*9*9;
 vec3_t cube_points[N_POINTS];
 vec2_t projected_points[N_POINTS];
 
-vec3_t camera_position = {
-    .x = 0,
-    .y = 0,
-    .z = -5
-};
+vec3_t camera_position = { 0, 0, 0 };
 
 
 float fov_factor = 640;
@@ -49,23 +45,6 @@ void setup(void) {
     //load_cube_mesh_data();
     load_obj_file_data("./assets/suzanne.obj");
 
-    vec2_t a = {2.5, 6.4};
-    vec2_t aa = {5.2, 4.6};
-    
-    vec3_t b = {-2.2, 1.4, 1.0};
-    vec3_t bb = {2.4, 5.4, -3.0};
-    
-    float a_len = vec2_length(a);
-    float b_len = vec3_length(b);
-
-    vec2_t add_aaa = vec2_add(a,aa);
-    vec3_t add_bbb = vec3_add(b,bb);
-    vec2_t sub_aaa = vec2_sub(a,aa);
-    vec3_t sub_bbb = vec3_sub(b,bb);
-    vec3_t bbb_cross = vec3_cross(b, bb);
-    float bbb_dot = vec3_dot(b,bb);
-
-    printf("--- %f %f %f %f %f %f %f %f \n", a_len, b_len, add_aaa.x, add_bbb.x, sub_aaa.x, sub_bbb.x, bbb_cross.x, bbb_dot);
 
 }
 
@@ -134,6 +113,8 @@ void update(void) {
         
         triangle_t projected_triangle;
 
+        vec3_t transformed_verticies[3];
+
         for(int j =0; j < 3; j++){
             vec3_t transformed_vert = face_verts[j];
             transformed_vert = vec3_rotate_x(transformed_vert, mesh.rotation.x);
@@ -141,9 +122,45 @@ void update(void) {
             transformed_vert = vec3_rotate_z(transformed_vert, mesh.rotation.z);
 
             // translate verts back in z from the camera
-            transformed_vert.z -= camera_position.z;
+            transformed_vert.z += 5;
 
-            vec2_t projected_point = persp_project(transformed_vert);
+            // store for culling and projection
+            transformed_verticies[j] = transformed_vert;
+        }
+
+        // backface culling
+        vec3_t va = transformed_verticies[0]; /*   A    */
+        vec3_t vb = transformed_verticies[1]; /*  / \   */
+        vec3_t vc = transformed_verticies[2]; /* C---B  */
+        // grab the 2 vectors from a
+        vec3_t v_ab = vec3_sub(vb, va);
+        vec3_t v_ac = vec3_sub(vc, va);
+        vec3_normalize_fast(&v_ab);
+        vec3_normalize_fast(&v_ac);
+        // get the normal - order is based on clickwise winding of face
+        // but handedness determines order to get normal in the right direction
+        // this is left handed
+        vec3_t normal = vec3_cross(v_ab, v_ac);
+        // normlaize it
+        //vec3_normalize(&normal);
+        vec3_normalize_fast(&normal);
+
+        // get vec to camera
+        vec3_t camera_ray = vec3_sub(camera_position, va);
+        // get the dot to the camera
+        float dot_normal_cam = vec3_dot(normal, camera_ray);
+        // see how aligned the face is to the camera dot
+        // 0 is perpendicular, 1.0 is aligned, -1.0 is opposite
+        // dot_normal_cam > 0) is inverted version
+        if(dot_normal_cam < 0){
+            // cull it
+            continue;
+        }
+
+
+        // do projection of verts for the face
+        for(int j =0; j < 3; j++){
+            vec2_t projected_point = persp_project(transformed_verticies[j]);
             //vec2_t projected_point = ortho_project(transformed_vert);
 
             // scale and translate to middle of screen

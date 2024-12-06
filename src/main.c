@@ -151,11 +151,12 @@ void update(void) {
     triangles_to_render = NULL;
 
     // change values per frame
-    mesh.rotation.x += 0.002;
-    mesh.rotation.y += 0.004;
+    mesh.rotation.x += 0.02;
+    mesh.rotation.y += 0.04;
     mesh.rotation.z += 0.006;
-    // mesh.scale.x += 0.002;
-    // mesh.scale.y += 0.002;
+    mesh.scale.x += 0.002;
+    mesh.scale.y += 0.002;
+    mesh.scale.z += 0.002;
     mesh.translation.x += 0.01;
     // move back 5 units from camera
     mesh.translation.z = 5.0;
@@ -187,20 +188,18 @@ void update(void) {
         for(int j =0; j < 3; j++){
             vec4_t transformed_vert = vec4_from_vec3(face_verts[j]);
 
-            // use a matrix to apply scale
-            transformed_vert = mat4_mul_vec4(scale_matrix, transformed_vert);
-            // use matrix to apply translation
-            transformed_vert = mat4_mul_vec4(translation_matrix, transformed_vert);
-            // use matrix to apply rotation
-            transformed_vert = mat4_mul_vec4(rotation_matrix_x, transformed_vert);
-            transformed_vert = mat4_mul_vec4(rotation_matrix_y, transformed_vert);
-            transformed_vert = mat4_mul_vec4(rotation_matrix_z, transformed_vert);
+            // create a world matrix to combine, tx, rx, and sx
+            mat4_t world_matrix = mat4_identity();
+            // order matters, so world is 2nd item applies to -->
+            // and order matters for the matrix so sx, rx, then tx since matrix math is not cumulative
+            // [T]*[R]*[S]*v
+            world_matrix = mat4_mul_mat4(scale_matrix, world_matrix);
+            world_matrix = mat4_mul_mat4(rotation_matrix_z, world_matrix);
+            world_matrix = mat4_mul_mat4(rotation_matrix_y, world_matrix);
+            world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
+            world_matrix = mat4_mul_mat4(translation_matrix, world_matrix);
 
-            // transformed_vert = vec3_rotate_x(transformed_vert, mesh.rotation.x);
-            // transformed_vert = vec3_rotate_y(transformed_vert, mesh.rotation.y);
-            // transformed_vert = vec3_rotate_z(transformed_vert, mesh.rotation.z);
-
-            
+            transformed_vert = mat4_mul_vec4(world_matrix, transformed_vert);
 
             // store for culling and projection
             transformed_verticies[j] = transformed_vert;

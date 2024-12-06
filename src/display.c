@@ -106,7 +106,7 @@ void draw_grid(void){
     // draw dots
     for(int y=0; y < window_height; y+=10){
         for(int x=0; x < window_width; x+=10){
-            draw_pixel(x, y, 0xFF333333);
+            draw_pixel(x, y, 0xFFFF00FF); //0xFF333333
         }
     }
 

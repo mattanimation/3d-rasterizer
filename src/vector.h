@@ -14,6 +14,10 @@ typedef struct {
 	float z;
 } vec3_t;
 
+typedef struct {
+	float x, y, z, w;
+} vec4_t;
+
 float Q_rsqrt( float number );
 
 // vec2 functions
@@ -36,6 +40,9 @@ float vec3_dot(vec3_t a, vec3_t b);
 void vec3_normalize(vec3_t* v);
 void vec3_normalize_fast(vec3_t* a);
 
+// vector conversion functions
+vec4_t vec4_from_vec3(vec3_t v);
+vec3_t vec3_from_vec4(vec4_t v);
 
 vec3_t vec3_rotate_x(vec3_t v, float angle);
 vec3_t vec3_rotate_y(vec3_t v, float angle);

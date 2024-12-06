@@ -7,17 +7,13 @@
 #include "vector.h"
 #include "mesh.h"
 #include "triangle.h"
+#include "matrix.h"
 
 
 // dynamic array of triangles to render
 triangle_t* triangles_to_render = NULL;
 
-const int N_POINTS = 9*9*9;
-vec3_t cube_points[N_POINTS];
-vec2_t projected_points[N_POINTS];
-
 vec3_t camera_position = { 0, 0, 0 };
-
 
 float fov_factor = 640;
 
@@ -25,7 +21,42 @@ bool is_running = false;
 int previous_frame_time = 0;
 
 
+void arr_swap(triangle_t* arr, int i, int j){
+    triangle_t temp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
+}
+
+void bubbleSort(triangle_t arr[], int n){
+    for(int i=0; i < n -1; i++){
+
+        bool swapped = false;
+        
+        for(int j=0; j < n - i - 1; j++){
+            if(arr[j].avg_depth > arr[j+1].avg_depth){
+                arr_swap(arr, j, j+1);
+                swapped = true;
+            }
+        }
+        
+        if(swapped == false){
+            break;
+        }
+    }
+}
+
+
 void setup(void) {
+
+    // Pressing “1” displays the wireframe and a small red dot for each triangle vertex
+    // Pressing “2” displays only the wireframe lines
+    // Pressing “3” displays filled triangles with a solid color
+    // Pressing “4” displays both filled triangles and wireframe lines
+    // Pressing “c” we should enable back-face culling
+    // Pressing “d” we should disable the back-face culling
+    render_method = RENDER_WIRE;
+    cull_method = CULL_BACKFACE;
+
     color_buffer = (uint32_t*) malloc(sizeof(uint32_t) * window_width * window_height);
     if(!color_buffer){
         printf("ERROR: allocating buffer \n");
@@ -42,8 +73,10 @@ void setup(void) {
     );
 
     // init the mesh
-    //load_cube_mesh_data();
-    load_obj_file_data("./assets/suzanne.obj");
+    load_cube_mesh_data();
+    //load_obj_file_data("./assets/suzanne.obj");
+    //load_obj_file_data("./assets/cube.obj");
+    //load_obj_file_data("./assets/f22.obj");
 
 
 }
@@ -79,6 +112,24 @@ void process_input(void){
     if(event.key.keysym.sym == SDLK_ESCAPE){
         is_running = false;
     }
+    if(event.key.keysym.sym == SDLK_1){
+        render_method = RENDER_WIRE_VERTEX;
+    }
+    if(event.key.keysym.sym == SDLK_2){
+        render_method = RENDER_WIRE;
+    }
+    if(event.key.keysym.sym == SDLK_3){
+        render_method = RENDER_FILL_TRIANGLE;
+    }
+    if(event.key.keysym.sym == SDLK_4){
+        render_method = RENDER_FILL_TRIANGLE_WIRE;
+    }
+    if(event.key.keysym.sym == SDLK_c){
+        cull_method = CULL_BACKFACE;
+    }
+    if(event.key.keysym.sym == SDLK_d){
+        cull_method = CULL_NONE;
+    }
     default:
         break;
     }
@@ -99,9 +150,28 @@ void update(void) {
     // init the tri arr
     triangles_to_render = NULL;
 
-    //mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.01;
-    // mesh.rotation.z += 0.01;
+    // change values per frame
+    mesh.rotation.x += 0.002;
+    mesh.rotation.y += 0.004;
+    mesh.rotation.z += 0.006;
+    // mesh.scale.x += 0.002;
+    // mesh.scale.y += 0.002;
+    mesh.translation.x += 0.01;
+    // move back 5 units from camera
+    mesh.translation.z = 5.0;
+    
+
+    // create a scale matrix that will be used to mult the scale
+    mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
+    // create a translation matrix to move the mesh
+    mat4_t translation_matrix = mat4_make_translation(
+        mesh.translation.x,
+        mesh.translation.y,
+        mesh.translation.z
+    );
+    mat4_t rotation_matrix_x = mat4_make_rotation_x(mesh.rotation.x);
+    mat4_t rotation_matrix_y = mat4_make_rotation_y(mesh.rotation.y);
+    mat4_t rotation_matrix_z = mat4_make_rotation_z(mesh.rotation.z);
 
     int num_faces = array_length(mesh.faces);
     for(int i=0; i < num_faces; i++){
@@ -111,69 +181,94 @@ void update(void) {
         face_verts[1] = mesh.verticies[mesh_face.b -1];
         face_verts[2] = mesh.verticies[mesh_face.c -1];
         
-        triangle_t projected_triangle;
 
-        vec3_t transformed_verticies[3];
+        vec4_t transformed_verticies[3];
 
         for(int j =0; j < 3; j++){
-            vec3_t transformed_vert = face_verts[j];
-            transformed_vert = vec3_rotate_x(transformed_vert, mesh.rotation.x);
-            transformed_vert = vec3_rotate_y(transformed_vert, mesh.rotation.y);
-            transformed_vert = vec3_rotate_z(transformed_vert, mesh.rotation.z);
+            vec4_t transformed_vert = vec4_from_vec3(face_verts[j]);
 
-            // translate verts back in z from the camera
-            transformed_vert.z += 5;
+            // use a matrix to apply scale
+            transformed_vert = mat4_mul_vec4(scale_matrix, transformed_vert);
+            // use matrix to apply translation
+            transformed_vert = mat4_mul_vec4(translation_matrix, transformed_vert);
+            // use matrix to apply rotation
+            transformed_vert = mat4_mul_vec4(rotation_matrix_x, transformed_vert);
+            transformed_vert = mat4_mul_vec4(rotation_matrix_y, transformed_vert);
+            transformed_vert = mat4_mul_vec4(rotation_matrix_z, transformed_vert);
+
+            // transformed_vert = vec3_rotate_x(transformed_vert, mesh.rotation.x);
+            // transformed_vert = vec3_rotate_y(transformed_vert, mesh.rotation.y);
+            // transformed_vert = vec3_rotate_z(transformed_vert, mesh.rotation.z);
+
+            
 
             // store for culling and projection
             transformed_verticies[j] = transformed_vert;
         }
 
-        // backface culling
-        vec3_t va = transformed_verticies[0]; /*   A    */
-        vec3_t vb = transformed_verticies[1]; /*  / \   */
-        vec3_t vc = transformed_verticies[2]; /* C---B  */
-        // grab the 2 vectors from a
-        vec3_t v_ab = vec3_sub(vb, va);
-        vec3_t v_ac = vec3_sub(vc, va);
-        vec3_normalize_fast(&v_ab);
-        vec3_normalize_fast(&v_ac);
-        // get the normal - order is based on clickwise winding of face
-        // but handedness determines order to get normal in the right direction
-        // this is left handed
-        vec3_t normal = vec3_cross(v_ab, v_ac);
-        // normlaize it
-        //vec3_normalize(&normal);
-        vec3_normalize_fast(&normal);
+        if(cull_method == CULL_BACKFACE){
+            // backface culling
+            vec3_t va = vec3_from_vec4(transformed_verticies[0]); /*   A    */
+            vec3_t vb = vec3_from_vec4(transformed_verticies[1]); /*  / \   */
+            vec3_t vc = vec3_from_vec4(transformed_verticies[2]); /* C---B  */
+            // grab the 2 vectors from a
+            vec3_t v_ab = vec3_sub(vb, va);
+            vec3_t v_ac = vec3_sub(vc, va);
+            vec3_normalize_fast(&v_ab);
+            vec3_normalize_fast(&v_ac);
+            // get the normal - order is based on clickwise winding of face
+            // but handedness determines order to get normal in the right direction
+            // this is left handed
+            vec3_t normal = vec3_cross(v_ab, v_ac);
+            // normlaize it
+            //vec3_normalize(&normal);
+            vec3_normalize_fast(&normal);
 
-        // get vec to camera
-        vec3_t camera_ray = vec3_sub(camera_position, va);
-        // get the dot to the camera
-        float dot_normal_cam = vec3_dot(normal, camera_ray);
-        // see how aligned the face is to the camera dot
-        // 0 is perpendicular, 1.0 is aligned, -1.0 is opposite
-        // dot_normal_cam > 0) is inverted version
-        if(dot_normal_cam < 0){
-            // cull it
-            continue;
+            // get vec to camera
+            vec3_t camera_ray = vec3_sub(camera_position, va);
+            // get the dot to the camera
+            float dot_normal_cam = vec3_dot(normal, camera_ray);
+            // see how aligned the face is to the camera dot
+            // 0 is perpendicular, 1.0 is aligned, -1.0 is opposite
+            // dot_normal_cam > 0) is inverted version
+            if(dot_normal_cam < 0){
+                // cull it
+                continue;
+            }
         }
 
+        vec2_t projected_points[3];
 
         // do projection of verts for the face
         for(int j =0; j < 3; j++){
-            vec2_t projected_point = persp_project(transformed_verticies[j]);
+            projected_points[j] = persp_project(vec3_from_vec4(transformed_verticies[j]));
             //vec2_t projected_point = ortho_project(transformed_vert);
 
             // scale and translate to middle of screen
-            projected_point.x += (window_width * 0.5);
-            projected_point.y += (window_height * 0.5);
+            projected_points[j].x += (window_width * 0.5);
+            projected_points[j].y += (window_height * 0.5);
 
-            projected_triangle.points[j] = projected_point;
-            
         }
+
+        // need avg z value of verts in a face
+        float avg_depth = (transformed_verticies[0].z + transformed_verticies[1].z + transformed_verticies[2].z) / 3;
+        
+        triangle_t projected_triangle = {
+            .points = {
+                { projected_points[0].x, projected_points[0].y},
+                { projected_points[1].x, projected_points[1].y},
+                { projected_points[2].x, projected_points[2].y},
+            },
+            .color = mesh_face.color,
+            .avg_depth = avg_depth
+        };
 
         array_push(triangles_to_render, projected_triangle);
         //triangles_to_render[i] = projected_triangle;
     }
+
+    // TODO: sort triangles by avg_depth
+    bubbleSort(triangles_to_render, array_length(triangles_to_render));
 }
 
 
@@ -186,22 +281,44 @@ void render(void) {
     for(int i=0; i < num_triangles; i++){
         triangle_t triangle = triangles_to_render[i];
 
-        // draw verts
-        draw_rect(triangle.points[0].x, triangle.points[0].y, 3, 3, 0xFFFF00FF);
-        draw_rect(triangle.points[1].x, triangle.points[1].y, 3, 3, 0xFFFF00FF);
-        draw_rect(triangle.points[2].x, triangle.points[2].y, 3, 3, 0xFFFF00FF);
+        if(render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE){
+            uint32_t color = 0xEEEEEEFF;
+            if(triangle.color) {
+                color = triangle.color;
+            }
+            draw_filled_triangle(
+                triangle.points[0].x,
+                triangle.points[0].y,
+                triangle.points[1].x,
+                triangle.points[1].y,
+                triangle.points[2].x,
+                triangle.points[2].y,
+                color 
+            );
+        }
 
-        // draw edges
-        draw_triangle(
-            triangle.points[0].x,
-            triangle.points[0].y,
-            triangle.points[1].x,
-            triangle.points[1].y,
-            triangle.points[2].x,
-            triangle.points[2].y,
-            0xFFFF00FF
-        );
+        if(render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE){
+            // draw edges
+            draw_triangle(
+                triangle.points[0].x,
+                triangle.points[0].y,
+                triangle.points[1].x,
+                triangle.points[1].y,
+                triangle.points[2].x,
+                triangle.points[2].y,
+                0xFF7F00FF
+            );
+        }
+
+        if(render_method == RENDER_WIRE_VERTEX){
+            // draw verts
+            draw_rect(triangle.points[0].x, triangle.points[0].y, 3, 3, 0xFFFF00FF);
+            draw_rect(triangle.points[1].x, triangle.points[1].y, 3, 3, 0xFFFF00FF);
+            draw_rect(triangle.points[2].x, triangle.points[2].y, 3, 3, 0xFFFF00FF);
+        }
+
     }
+    
 
     //clear tri arr
     array_free(triangles_to_render);

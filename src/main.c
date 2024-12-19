@@ -1,21 +1,22 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <SDL2/SDL.h>
 #include "array.h"
 #include "display.h"
-#include "vector.h"
+#include "light.h"
+#include "matrix.h"
 #include "mesh.h"
 #include "triangle.h"
-#include "matrix.h"
+#include "vector.h"
 
 
 // dynamic array of triangles to render
 triangle_t* triangles_to_render = NULL;
 
 vec3_t camera_position = { 0, 0, 0 };
-
-float fov_factor = 640;
+mat4_t proj_matrix;
 
 bool is_running = false;
 int previous_frame_time = 0;
@@ -72,33 +73,40 @@ void setup(void) {
         window_height
     );
 
+    // init perspective projection matrix
+    float fov = M_PI / 3.0;   // same as 180/3 or 60 degress;
+    float aspect = (float)window_height / (float)window_width;
+    float znear = 0.1;
+    float zfar = 100.0;
+    proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
+
     // init the mesh
-    load_cube_mesh_data();
+    //load_cube_mesh_data();
     //load_obj_file_data("./assets/suzanne.obj");
     //load_obj_file_data("./assets/cube.obj");
-    //load_obj_file_data("./assets/f22.obj");
+    load_obj_file_data("./assets/f22.obj");
 
 
 }
 
 
-vec2_t ortho_project(vec3_t point){
-    vec2_t projected_point = {
-        .x = (fov_factor * point.x),
-        .y = (fov_factor * point.y)
-    };
+// vec2_t ortho_project(vec3_t point){
+//     vec2_t projected_point = {
+//         .x = (fov_factor * point.x),
+//         .y = (fov_factor * point.y)
+//     };
 
-    return projected_point;
-}
+//     return projected_point;
+// }
 
-vec2_t persp_project(vec3_t point){
-    vec2_t projected_point = {
-        .x = (fov_factor * point.x) / point.z,
-        .y = (fov_factor * point.y) / point.z
-    };
+// vec2_t persp_project(vec3_t point){
+//     vec2_t projected_point = {
+//         .x = (fov_factor * point.x) / point.z,
+//         .y = (fov_factor * point.y) / point.z
+//     };
 
-    return projected_point;
-}
+//     return projected_point;
+// }
 
 void process_input(void){
     SDL_Event event;
@@ -152,12 +160,12 @@ void update(void) {
 
     // change values per frame
     mesh.rotation.x += 0.02;
-    mesh.rotation.y += 0.04;
-    mesh.rotation.z += 0.006;
-    mesh.scale.x += 0.002;
-    mesh.scale.y += 0.002;
-    mesh.scale.z += 0.002;
-    mesh.translation.x += 0.01;
+    //mesh.rotation.y += 0.04;
+    //mesh.rotation.z += 0.006;
+    //mesh.scale.x += 0.002;
+    //mesh.scale.y += 0.002;
+    //mesh.scale.z += 0.002;
+    //mesh.translation.x += 0.01;
     // move back 5 units from camera
     mesh.translation.z = 5.0;
     
@@ -205,28 +213,31 @@ void update(void) {
             transformed_verticies[j] = transformed_vert;
         }
 
-        if(cull_method == CULL_BACKFACE){
-            // backface culling
-            vec3_t va = vec3_from_vec4(transformed_verticies[0]); /*   A    */
-            vec3_t vb = vec3_from_vec4(transformed_verticies[1]); /*  / \   */
-            vec3_t vc = vec3_from_vec4(transformed_verticies[2]); /* C---B  */
-            // grab the 2 vectors from a
-            vec3_t v_ab = vec3_sub(vb, va);
-            vec3_t v_ac = vec3_sub(vc, va);
-            vec3_normalize_fast(&v_ab);
-            vec3_normalize_fast(&v_ac);
-            // get the normal - order is based on clickwise winding of face
-            // but handedness determines order to get normal in the right direction
-            // this is left handed
-            vec3_t normal = vec3_cross(v_ab, v_ac);
-            // normlaize it
-            //vec3_normalize(&normal);
-            vec3_normalize_fast(&normal);
+        
+        
+        vec3_t va = vec3_from_vec4(transformed_verticies[0]); /*   A    */
+        vec3_t vb = vec3_from_vec4(transformed_verticies[1]); /*  / \   */
+        vec3_t vc = vec3_from_vec4(transformed_verticies[2]); /* C---B  */
+        // grab the 2 vectors from a
+        vec3_t v_ab = vec3_sub(vb, va);
+        vec3_t v_ac = vec3_sub(vc, va);
+        vec3_normalize_fast(&v_ab);
+        vec3_normalize_fast(&v_ac);
+        // get the normal - order is based on clickwise winding of face
+        // but handedness determines order to get normal in the right direction
+        // this is left handed
+        vec3_t normal = vec3_cross(v_ab, v_ac);
+        // normlaize it
+        //vec3_normalize(&normal);
+        vec3_normalize_fast(&normal);
 
-            // get vec to camera
-            vec3_t camera_ray = vec3_sub(camera_position, va);
-            // get the dot to the camera
-            float dot_normal_cam = vec3_dot(normal, camera_ray);
+        // get vec to camera
+        vec3_t camera_ray = vec3_sub(camera_position, va);
+        // get the dot to the camera
+        float dot_normal_cam = vec3_dot(normal, camera_ray);
+
+        // backface culling
+        if(cull_method == CULL_BACKFACE){
             // see how aligned the face is to the camera dot
             // 0 is perpendicular, 1.0 is aligned, -1.0 is opposite
             // dot_normal_cam > 0) is inverted version
@@ -236,29 +247,49 @@ void update(void) {
             }
         }
 
-        vec2_t projected_points[3];
+        vec4_t projected_points[3];
 
         // do projection of verts for the face
         for(int j =0; j < 3; j++){
-            projected_points[j] = persp_project(vec3_from_vec4(transformed_verticies[j]));
+
+            projected_points[j] = mat4_mul_vec4_project(proj_matrix, transformed_verticies[j]);
+            //projected_points[j] = persp_project(vec3_from_vec4(transformed_verticies[j]));
             //vec2_t projected_point = ortho_project(transformed_vert);
 
-            // scale and translate to middle of screen
+            // scale into the view
+            projected_points[j].x *= (window_width * 0.5);
+            projected_points[j].y *= (window_height * 0.5);
+
+            // invert the y values to account for flipped screen u coordinates
+            projected_points[j].y *= -1;
+            
+            //translate to middle of screen
             projected_points[j].x += (window_width * 0.5);
             projected_points[j].y += (window_height * 0.5);
 
+            
         }
 
         // need avg z value of verts in a face
         float avg_depth = (transformed_verticies[0].z + transformed_verticies[1].z + transformed_verticies[2].z) / 3;
         
+        uint32_t triangle_color = mesh_face.color;
+
+        // calc light intensity of the light hitting the face
+        // get alignment of light -> normal angle
+        // invert the value due to how global light angle works relative to camera origin
+        float light_intensity_factor = -vec3_dot(light.direction, normal);
+        // calc color of face from light
+        uint32_t shaded_color = light_apply_intensity(triangle_color, light_intensity_factor);
+        
+
         triangle_t projected_triangle = {
             .points = {
                 { projected_points[0].x, projected_points[0].y},
                 { projected_points[1].x, projected_points[1].y},
                 { projected_points[2].x, projected_points[2].y},
             },
-            .color = mesh_face.color,
+            .color = shaded_color,
             .avg_depth = avg_depth
         };
 
@@ -297,6 +328,7 @@ void render(void) {
         }
 
         if(render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE){
+            uint32_t color = 0xFF7F00FF;
             // draw edges
             draw_triangle(
                 triangle.points[0].x,
@@ -305,7 +337,7 @@ void render(void) {
                 triangle.points[1].y,
                 triangle.points[2].x,
                 triangle.points[2].y,
-                0xFF7F00FF
+                color
             );
         }
 

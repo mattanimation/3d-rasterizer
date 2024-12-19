@@ -30,6 +30,19 @@ mat4_t mat4_make_translation(float tx, float ty, float tz){
 	return m;
 }
 
+mat4_t mat4_make_perspective(float fov, float aspect, float znear, float zfar){
+	mat4_t m = mat4_identity();
+	float fovNormalized = (1/ tan(fov * 0.5));
+	float zFarNormalized = zfar / (zfar - znear);
+	float zNearNormalized = (-zfar * znear) / (zfar - znear);
+	m.m[0][0] = aspect * fovNormalized;
+	m.m[1][1] = fovNormalized;
+	m.m[2][2] = zFarNormalized;
+	m.m[3][3] = zNearNormalized;
+	m.m[3][2] = 1.0; // store the original z (unnormalized or changed) in the w spot
+	return m;
+}
+
 vec4_t mat4_mul_vec4(mat4_t m, vec4_t v){
 	vec4_t result;
 	result.x = m.m[0][0] * v.x + m.m[0][1] * v.y + m.m[0][2] * v.z + m.m[0][3] * v.w;
@@ -48,6 +61,21 @@ mat4_t mat4_mul_mat4(mat4_t a, mat4_t b){
 	}
 	return m;
 }
+
+vec4_t mat4_mul_vec4_project(mat4_t mat_proj, vec4_t v){
+	// apply projection matrix
+	vec4_t result = mat4_mul_vec4(mat_proj, v);
+
+	// apply perpective divide
+	if( result.w != 0.0){
+		result.x /= result.w;
+		result.y /= result.w;
+		result.z /= result.w;
+	}
+
+	return result;
+}
+
 
 mat4_t mat4_make_rotation_x(float angle){
 	float c = cos(angle);

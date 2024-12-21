@@ -1,7 +1,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
-#import <stdint.h>
+#include <stdint.h>
 
 typedef struct {
 	float x;

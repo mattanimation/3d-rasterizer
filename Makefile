@@ -5,6 +5,13 @@ build:
     -lSDL2 \
     -lm
 
+build_linux:
+	gcc -Wall -std=c99 ./src/*.c -o renderer \
+	-I/usr/include/SDL2 -D_REENTRANT \
+	-lSDL2 \
+	-lm
+# `sdl2-config --cflags --libs` -lm
+
 run:
 	./renderer
 

@@ -351,10 +351,10 @@ void render(void) {
 
         //draw textured
         if(render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE){
-            uint32_t color = 0xEEEEEEFF;
-            if(triangle.color) {
-                color = triangle.color;
-            }
+            // uint32_t color = 0xEEEEEEFF;
+            // if(triangle.color) {
+            //     color = triangle.color;
+            // }
             
             draw_textured_triangle(
                 triangle.points[0].x, triangle.points[0].y, triangle.texcoords[0].u, triangle.texcoords[0].v,

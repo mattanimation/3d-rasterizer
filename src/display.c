@@ -121,12 +121,6 @@ void draw_grid(void){
 }
 
 
-void draw_triangle(int x0, int y0, int x1, int y1 ,int x2, int y2, uint32_t color) {
-	draw_line(x0, y0, x1, y1, color);
-	draw_line(x1, y1, x2, y2, color);
-	draw_line(x2, y2, x0, y0, color);
-}
-
 void clear_color_buffer(uint32_t color) {
     for(int y=0; y < window_height; y++){
         for(int x=0; x < window_width; x++){

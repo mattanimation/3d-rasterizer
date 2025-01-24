@@ -8,8 +8,10 @@
 #include "light.h"
 #include "matrix.h"
 #include "mesh.h"
+#include "texture.h"
 #include "triangle.h"
 #include "vector.h"
+
 
 
 // dynamic array of triangles to render
@@ -80,11 +82,16 @@ void setup(void) {
     float zfar = 100.0;
     proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
 
+    // manually load tex data
+    mesh_texture = (uint32_t*)REDBRICK_TEXTURE;
+    texture_width = 64;
+    texture_height = 64;
+
     // init the mesh
-    //load_cube_mesh_data();
+    load_cube_mesh_data();
     //load_obj_file_data("./assets/suzanne.obj");
     //load_obj_file_data("./assets/cube.obj");
-    load_obj_file_data("./assets/f22.obj");
+    //load_obj_file_data("./assets/f22.obj");
 
 
 }
@@ -131,6 +138,12 @@ void process_input(void){
     }
     if(event.key.keysym.sym == SDLK_4){
         render_method = RENDER_FILL_TRIANGLE_WIRE;
+    }
+    if(event.key.keysym.sym == SDLK_5){
+        render_method = RENDER_TEXTURED;
+    }
+    if(event.key.keysym.sym == SDLK_6){
+        render_method = RENDER_TEXTURED_WIRE;
     }
     if(event.key.keysym.sym == SDLK_c){
         cull_method = CULL_BACKFACE;
@@ -289,6 +302,11 @@ void update(void) {
                 { projected_points[1].x, projected_points[1].y},
                 { projected_points[2].x, projected_points[2].y},
             },
+            .texcoords = {
+                { mesh_face.a_uv.u, mesh_face.a_uv.v },
+                { mesh_face.b_uv.u, mesh_face.b_uv.v },
+                { mesh_face.c_uv.u, mesh_face.c_uv.v },
+            },
             .color = shaded_color,
             .avg_depth = avg_depth
         };
@@ -311,6 +329,7 @@ void render(void) {
     for(int i=0; i < num_triangles; i++){
         triangle_t triangle = triangles_to_render[i];
 
+        // draw filled
         if(render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE){
             uint32_t color = 0xEEEEEEFF;
             if(triangle.color) {
@@ -327,7 +346,23 @@ void render(void) {
             );
         }
 
-        if(render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE){
+        //draw textured
+        if(render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE){
+            uint32_t color = 0xEEEEEEFF;
+            if(triangle.color) {
+                color = triangle.color;
+            }
+            
+            draw_textured_triangle(
+                triangle.points[0].x, triangle.points[0].y, triangle.texcoords[0].u, triangle.texcoords[0].v,
+                triangle.points[1].x, triangle.points[1].y, triangle.texcoords[1].u, triangle.texcoords[1].v,
+                triangle.points[2].x, triangle.points[2].y, triangle.texcoords[2].u, triangle.texcoords[2].v,
+                mesh_texture
+            );
+        }
+
+        // draw wire
+        if(render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE || render_method == RENDER_TEXTURED_WIRE){
             uint32_t color = 0xFF7F00FF;
             // draw edges
             draw_triangle(
@@ -340,6 +375,7 @@ void render(void) {
                 color
             );
         }
+
 
         if(render_method == RENDER_WIRE_VERTEX){
             // draw verts

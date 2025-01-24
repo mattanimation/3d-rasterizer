@@ -1,10 +1,5 @@
 #include "triangle.h"
-
-void int_swap(int *a, int *b){
-	int tmp = *a;
-	*a = *b;
-	*b = tmp;
-}
+#include "swap.h"
 
 // draw a filled triangle that has a flat bottom, top to bottom
 ///////////////////////////////////////////////////////////////////////////////
@@ -127,3 +122,134 @@ void draw_filled_triangle(int x0, int y0, int x1, int y1 ,int x2, int y2, uint32
 	}
 }
 
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Draw a textured triangle based on a texture array of colors.
+// We split the original triangle in two, half flat-bottom and half flat-top.
+///////////////////////////////////////////////////////////////////////////////
+//
+//        v0
+//        /\
+//       /  \
+//      /    \
+//     /      \
+//   v1--------\
+//     \_       \
+//        \_     \
+//           \_   \
+//              \_ \
+//                 \\
+//                   \
+//                    v2
+//
+///////////////////////////////////////////////////////////////////////////////
+void draw_textured_triangle(
+	int x0, int y0, float u0, float v0,
+	int x1, int y1, float u1, float v1,
+	int x2, int y2, float u2, float v2,
+	uint32_t* texture
+){
+	// we need to sort the verts by the y-coord ascending (y0 < y1 < y2)
+	if (y0 > y1) {
+        int_swap(&y0, &y1);
+        int_swap(&x0, &x1);
+        float_swap(&u0, &u1);
+        float_swap(&v0, &v1);
+    }
+    if (y1 > y2) {
+        int_swap(&y1, &y2);
+        int_swap(&x1, &x2);
+        float_swap(&u1, &u2);
+        float_swap(&v1, &v2);
+    }
+    if (y0 > y1) {
+        int_swap(&y0, &y1);
+        int_swap(&x0, &x1);
+        float_swap(&u0, &v1);
+        float_swap(&u0, &v1);
+    }
+
+    ////////////////////////////////////////////////////////
+    // Render the upper part of the triangle (flat-bottom)
+    ////////////////////////////////////////////////////////
+
+	// left and right legs
+    float inv_slope_1 = 0;
+    float inv_slope_2 = 0;
+
+    int delta_x1 = x1 - x0;
+    int delta_y1 = y1 - y0;
+    int delta_x2 = x2 - x0;
+    int delta_y2 = y2 - y0;
+    // ensure there are no zero division issues and the values are floats
+    if(delta_y1 != 0) inv_slope_1 = (float)delta_x1 / abs(delta_y1);
+    if(delta_y2 != 0) inv_slope_2 = (float)delta_x2 / abs(delta_y2);
+
+    if(delta_y1 != 0){
+
+	    for(int y = y0; y <= y1; y++){
+	    	// find the line start and end for the x scanline
+	    	int x_start = x1 + (y - y1) * inv_slope_1;
+	    	int x_end = x0 + (y - y0) * inv_slope_2;
+
+	    	// swap if x_start is to the right of x_end
+	    	if(x_end < x_start){
+	    		int_swap(&x_start, &x_end);
+	    	}
+
+	    	for(int x = x_start; x < x_end; x ++){
+	    		// use texutre coords to draw pixel
+	    		draw_pixel(x,y, (x % 2 == 0) && (y % 2 == 0) ? 0xFFF00FF : 0xFF000000);
+	    	}
+
+	    }
+	}
+
+	////////////////////////////////////////////////////////
+    // Render the bottom part of the triangle (flat-top)
+    ////////////////////////////////////////////////////////
+
+	// left and right legs
+    inv_slope_1 = 0;
+    inv_slope_2 = 0;
+
+    // these change
+    delta_x1 = x2 - x1;
+    delta_y1 = y2 - y1;
+    // these are pretty much same
+    delta_x2 = x2 - x0;
+    delta_y2 = y2 - y0;
+    // ensure there are no zero division issues and the values are floats
+    if(delta_y1 != 0) inv_slope_1 = (float)delta_x1 / abs(delta_y1);
+    if(delta_y2 != 0) inv_slope_2 = (float)delta_x2 / abs(delta_y2);
+
+    if(delta_y1 != 0){
+
+	    for(int y = y1; y <= y2; y++){
+	    	// find the line start and end for the x scanline
+	    	int x_start = x1 + (y - y1) * inv_slope_1;
+	    	int x_end = x0 + (y - y0) * inv_slope_2;
+
+	    	// swap if x_start is to the right of x_end
+	    	if(x_end < x_start){
+	    		int_swap(&x_start, &x_end);
+	    	}
+
+	    	for(int x = x_start; x < x_end; x ++){
+	    		// use texutre coords to draw pixel
+	    		draw_pixel(x,y, (x % 2 == 0) && (y % 2 == 0) ? 0xFFF00FF : 0xFF000000);
+	    	}
+
+	    }
+	}
+
+
+}
+
+
+void draw_triangle(int x0, int y0, int x1, int y1 ,int x2, int y2, uint32_t color) {
+	draw_line(x0, y0, x1, y1, color);
+	draw_line(x1, y1, x2, y2, color);
+	draw_line(x2, y2, x0, y0, color);
+}

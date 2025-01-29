@@ -98,13 +98,15 @@ void load_cube_mesh_data(void){
 }
 
 void load_obj_file_data(const char* path){
-
+	printf("loading %s\n", path);
 	FILE* file  = fopen(path, "r");
 	if(file == NULL){
 		printf("file at \"%s\" \n could not be openend", path);
 		return;
 	}
 	char line[512];
+
+	tex2_t* texcoords = NULL;
 
 	while(fgets(line, sizeof(line), file) != NULL){
 
@@ -114,6 +116,14 @@ void load_obj_file_data(const char* path){
 			sscanf(line, "v %f %f %f", &v.x, &v.y, &v.z);
 			//printf("vert line: %s", line);
 			array_push(mesh.verticies, v);
+		}
+
+		// scan for vert textures
+		if(strncmp(line, "vt ", 3) == 0) {
+			tex2_t texcoord;
+			sscanf(line, "vt %f %f", &texcoord.u, &texcoord.v);
+			//printf("vert tex line: %s", line);
+			array_push(texcoords, texcoord);
 		}
 
 		// scan for faces (ex. f 47/1/1 1/2/1 3/3/1 45/4/1)
@@ -131,15 +141,19 @@ void load_obj_file_data(const char* path){
 				&vertex_indicies[2], &texture_indicies[2], &normal_indicies[2]
 			);
 			face_t face = {
-				.a = vertex_indicies[0],
-				.b = vertex_indicies[1],
-				.c = vertex_indicies[2],
+				.a = vertex_indicies[0] - 1,
+				.b = vertex_indicies[1] - 1,
+				.c = vertex_indicies[2] - 1,
+				.a_uv = texcoords[texture_indicies[0] - 1],
+				.b_uv = texcoords[texture_indicies[1] - 1],
+				.c_uv = texcoords[texture_indicies[2] - 1],
 				.color = 0xFFFFFFFF
 			};
 			
 			array_push(mesh.faces, face);
 		}
 	}
+	array_free(texcoords);
 	printf("vert count: %d %f, %f, %f \n",array_length(mesh.verticies), mesh.verticies[0].x, mesh.verticies[0].y, mesh.verticies[0].z);
 	printf("face count: %d %d, %d, %d \n",array_length(mesh.faces), mesh.faces[0].a, mesh.faces[0].b, mesh.faces[0].c);
 

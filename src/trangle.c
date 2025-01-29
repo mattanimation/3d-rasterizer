@@ -167,7 +167,9 @@ void draw_texel(
 	vec2_t a = vec2_from_vec4(point_a);
 	vec2_t b = vec2_from_vec4(point_b);
 	vec2_t c = vec2_from_vec4(point_c);
+	
 	vec3_t weights = barycentric_weights(a, b, c, p);
+
 	float alpha = weights.x;
 	float beta = weights.y;
 	float gamma = weights.z;
@@ -189,8 +191,8 @@ void draw_texel(
 	interpolated_v /= interpolated_reciprocal_w;
 
 	// map the UV coord to the texture w x h
-	int tex_x = abs((int)(interpolated_u * texture_width));
-	int tex_y = abs((int)(interpolated_v * texture_height));
+	int tex_x = abs((int)(interpolated_u * texture_width)) % texture_width; // use modulo to ensure it isn't ever outside the range of texture
+	int tex_y = abs((int)(interpolated_v * texture_height)) % texture_height;
 
 	draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
 
@@ -249,6 +251,11 @@ void draw_textured_triangle(
         float_swap(&u0, &v1);
         float_swap(&u0, &v1);
     }
+
+    // flip the v component to account for inverted UV coords (V grows downwards)
+    v0 = 1.0 - v0;
+    v1 = 1.0 - v1;
+    v2 = 1.0 - v2;
 
     // create vecs and tex coords from the points
     vec4_t point_a = {x0, y0, z0, w0};

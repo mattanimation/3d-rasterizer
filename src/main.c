@@ -95,10 +95,22 @@ void setup(void) {
     // init the mesh
     //load_cube_mesh_data();
     //load_obj_file_data("./assets/suzanne.obj");
-    load_obj_file_data("./assets/cube.obj");
+    //load_obj_file_data("./assets/cube.obj");
     //load_obj_file_data("./assets/f22.obj");
+    //load_obj_file_data("./assets/crab.obj");
+    load_obj_file_data("./assets/drone.obj");
+    //load_obj_file_data("./assets/efa.obj");
+    //load_obj_file_data("./assets/f117.obj");
+    //load_obj_file_data("./assets/pikuma.obj");
 
-    load_png_texture_data("./assets/cube.png");
+    //load_png_texture_data("./assets/cube.png");
+    //load_png_texture_data("./assets/f22.png");
+    //load_png_texture_data("./assets/crab.png");
+    load_png_texture_data("./assets/drone.png");
+    //load_png_texture_data("./assets/efa.png");
+    //load_png_texture_data("./assets/f117.png");
+    //load_png_texture_data("./assets/pikuma.png");
+
 
 
 }
@@ -181,7 +193,7 @@ void update(void) {
     // change values per frame
     mesh.rotation.x += 0.02;
     //mesh.rotation.y += 0.04;
-    //mesh.rotation.z += 0.006;
+    mesh.rotation.z += 0.006;
     //mesh.scale.x += 0.002;
     //mesh.scale.y += 0.002;
     //mesh.scale.z += 0.002;
@@ -206,9 +218,9 @@ void update(void) {
     for(int i=0; i < num_faces; i++){
         face_t mesh_face = mesh.faces[i];
         vec3_t  face_verts[3];
-        face_verts[0] = mesh.verticies[mesh_face.a -1];
-        face_verts[1] = mesh.verticies[mesh_face.b -1];
-        face_verts[2] = mesh.verticies[mesh_face.c -1];
+        face_verts[0] = mesh.verticies[mesh_face.a];
+        face_verts[1] = mesh.verticies[mesh_face.b];
+        face_verts[2] = mesh.verticies[mesh_face.c];
         
 
         vec4_t transformed_verticies[3];

@@ -19,7 +19,12 @@
 
 
 // dynamic array of triangles to render
-triangle_t* triangles_to_render = NULL;
+#define MAX_TRIANGLES_PER_MESH 10000
+triangle_t triangles_to_render[MAX_TRIANGLES_PER_MESH];
+// used to keep track of how many tris to render per frame
+// this is becuase with culling we aren't always needing to render
+// all the tris loaded from the mesh
+int num_triangles_to_render = 0;
 
 vec3_t camera_position = { 0, 0, 0 };
 mat4_t proj_matrix;
@@ -105,16 +110,16 @@ void setup(void) {
     //load_obj_file_data("./assets/suzanne.obj");
     //load_obj_file_data("./assets/cube.obj");
     //load_obj_file_data("./assets/f22.obj");
-    load_obj_file_data("./assets/crab.obj");
-    //load_obj_file_data("./assets/drone.obj");
+    //load_obj_file_data("./assets/crab.obj");
+    load_obj_file_data("./assets/drone.obj");
     //load_obj_file_data("./assets/efa.obj");
     //load_obj_file_data("./assets/f117.obj");
     //load_obj_file_data("./assets/pikuma.obj");
 
     //load_png_texture_data("./assets/cube.png");
     //load_png_texture_data("./assets/f22.png");
-    load_png_texture_data("./assets/crab.png");
-    //load_png_texture_data("./assets/drone.png");
+    //load_png_texture_data("./assets/crab.png");
+    load_png_texture_data("./assets/drone.png");
     //load_png_texture_data("./assets/efa.png");
     //load_png_texture_data("./assets/f117.png");
     //load_png_texture_data("./assets/pikuma.png");
@@ -195,8 +200,8 @@ void update(void) {
 
     previous_frame_time = SDL_GetTicks();
 
-    // init the tri arr
-    triangles_to_render = NULL;
+    // reset tri render tracker
+    num_triangles_to_render = 0;
 
     // change values per frame
     //mesh.rotation.x += 0.02;
@@ -339,8 +344,14 @@ void update(void) {
             //.avg_depth = avg_depth // removed when changing to z-buffer
         };
 
-        array_push(triangles_to_render, projected_triangle);
-        //triangles_to_render[i] = projected_triangle;
+        // save projected tri to render
+        if(num_triangles_to_render < MAX_TRIANGLES_PER_MESH){
+            triangles_to_render[num_triangles_to_render] = projected_triangle;
+            num_triangles_to_render++;
+        }
+
+        //array_push(triangles_to_render, projected_triangle);
+        
     }
 
     // sort triangles by avg_depth (painters algorithm)
@@ -352,9 +363,8 @@ void render(void) {
     
     draw_grid();
 
-    int num_triangles = array_length(triangles_to_render);
-
-    for(int i=0; i < num_triangles; i++){
+    
+    for(int i=0; i < num_triangles_to_render; i++){
         triangle_t triangle = triangles_to_render[i];
 
         // draw filled
@@ -410,10 +420,6 @@ void render(void) {
         }
 
     }
-    
-
-    //clear tri arr
-    array_free(triangles_to_render);
 
     render_color_buffer();
     clear_color_buffer(0xFFFFFF00);

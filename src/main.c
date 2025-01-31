@@ -34,23 +34,24 @@ void arr_swap(triangle_t* arr, int i, int j){
     arr[j] = temp;
 }
 
-void bubbleSort(triangle_t arr[], int n){
-    for(int i=0; i < n -1; i++){
+// deprecated with z-buffer update
+// void bubbleSort(triangle_t arr[], int n){
+//     for(int i=0; i < n -1; i++){
 
-        bool swapped = false;
+//         bool swapped = false;
         
-        for(int j=0; j < n - i - 1; j++){
-            if(arr[j].avg_depth > arr[j+1].avg_depth){
-                arr_swap(arr, j, j+1);
-                swapped = true;
-            }
-        }
+//         for(int j=0; j < n - i - 1; j++){
+//             if(arr[j].avg_depth > arr[j+1].avg_depth){
+//                 arr_swap(arr, j, j+1);
+//                 swapped = true;
+//             }
+//         }
         
-        if(swapped == false){
-            break;
-        }
-    }
-}
+//         if(swapped == false){
+//             break;
+//         }
+//     }
+// }
 
 
 void setup(void) {
@@ -66,7 +67,14 @@ void setup(void) {
 
     color_buffer = (uint32_t*) malloc(sizeof(uint32_t) * window_width * window_height);
     if(!color_buffer){
-        printf("ERROR: allocating buffer \n");
+        printf("ERROR: allocating color buffer \n");
+        is_running = false;
+        return;
+    }
+
+    z_buffer = (float*) malloc(sizeof(float) * window_width * window_height);
+    if(!z_buffer){
+        printf("ERROR: allocating z buffer \n");
         is_running = false;
         return;
     }
@@ -97,16 +105,16 @@ void setup(void) {
     //load_obj_file_data("./assets/suzanne.obj");
     //load_obj_file_data("./assets/cube.obj");
     //load_obj_file_data("./assets/f22.obj");
-    //load_obj_file_data("./assets/crab.obj");
-    load_obj_file_data("./assets/drone.obj");
+    load_obj_file_data("./assets/crab.obj");
+    //load_obj_file_data("./assets/drone.obj");
     //load_obj_file_data("./assets/efa.obj");
     //load_obj_file_data("./assets/f117.obj");
     //load_obj_file_data("./assets/pikuma.obj");
 
     //load_png_texture_data("./assets/cube.png");
     //load_png_texture_data("./assets/f22.png");
-    //load_png_texture_data("./assets/crab.png");
-    load_png_texture_data("./assets/drone.png");
+    load_png_texture_data("./assets/crab.png");
+    //load_png_texture_data("./assets/drone.png");
     //load_png_texture_data("./assets/efa.png");
     //load_png_texture_data("./assets/f117.png");
     //load_png_texture_data("./assets/pikuma.png");
@@ -191,9 +199,9 @@ void update(void) {
     triangles_to_render = NULL;
 
     // change values per frame
-    mesh.rotation.x += 0.02;
-    //mesh.rotation.y += 0.04;
-    mesh.rotation.z += 0.006;
+    //mesh.rotation.x += 0.02;
+    mesh.rotation.y += 0.04;
+    //mesh.rotation.z += 0.006;
     //mesh.scale.x += 0.002;
     //mesh.scale.y += 0.002;
     //mesh.scale.z += 0.002;
@@ -303,7 +311,8 @@ void update(void) {
         }
 
         // need avg z value of verts in a face
-        float avg_depth = (transformed_verticies[0].z + transformed_verticies[1].z + transformed_verticies[2].z) / 3;
+        // NOTE: removed when changing to z-buffer
+        //float avg_depth = (transformed_verticies[0].z + transformed_verticies[1].z + transformed_verticies[2].z) / 3;
         
         uint32_t triangle_color = mesh_face.color;
 
@@ -327,15 +336,15 @@ void update(void) {
                 { mesh_face.c_uv.u, mesh_face.c_uv.v },
             },
             .color = shaded_color,
-            .avg_depth = avg_depth
+            //.avg_depth = avg_depth // removed when changing to z-buffer
         };
 
         array_push(triangles_to_render, projected_triangle);
         //triangles_to_render[i] = projected_triangle;
     }
 
-    // TODO: sort triangles by avg_depth
-    bubbleSort(triangles_to_render, array_length(triangles_to_render));
+    // sort triangles by avg_depth (painters algorithm)
+    //bubbleSort(triangles_to_render, array_length(triangles_to_render));
 }
 
 
@@ -355,12 +364,9 @@ void render(void) {
                 color = triangle.color;
             }
             draw_filled_triangle(
-                triangle.points[0].x,
-                triangle.points[0].y,
-                triangle.points[1].x,
-                triangle.points[1].y,
-                triangle.points[2].x,
-                triangle.points[2].y,
+                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vert a
+                triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vert b
+                triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vert c
                 color 
             );
         }
@@ -411,6 +417,7 @@ void render(void) {
 
     render_color_buffer();
     clear_color_buffer(0xFFFFFF00);
+    clear_z_buffer();
 
     SDL_RenderPresent(renderer);
 }
@@ -422,6 +429,7 @@ void free_resources(void){
     array_free(mesh.faces);
     upng_free(png_texture);
     free(color_buffer);
+    free(z_buffer);
 }
 
 

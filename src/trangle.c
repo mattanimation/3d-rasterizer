@@ -68,6 +68,40 @@ void fill_flat_top_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint
     }
 }
 
+
+void draw_triangle_pixel(int x, int y, uint32_t color, vec4_t point_a, vec4_t point_b, vec4_t point_c){
+
+	vec2_t p = { x, y };
+	vec2_t a = vec2_from_vec4(point_a);
+	vec2_t b = vec2_from_vec4(point_b);
+	vec2_t c = vec2_from_vec4(point_c);
+	
+	vec3_t weights = barycentric_weights(a, b, c, p);
+
+	float alpha = weights.x;
+	float beta = weights.y;
+	float gamma = weights.z;
+
+	// need to get reciprocal of the values to account for affine transforms
+	float interpolated_reciprocal_w;
+
+	// also interpolate value of 1/w for curren pixel
+	interpolated_reciprocal_w = ((1 / point_a.w) * alpha) + ((1 / point_b.w) * beta) + ((1 / point_c.w) * gamma);
+
+	// adjust the recip_w so the pixels that are closer to camera have smaller values
+	// so the next check works better
+	interpolated_reciprocal_w = 1.0 - interpolated_reciprocal_w;
+
+	// only draw the pixel if the depth value if the depth value is less than what was stored previously stored in the z-buffer
+	if(interpolated_reciprocal_w < z_buffer[(window_width * y) + x]){
+		draw_pixel(x, y, color);
+
+		// update the z_buffer with the 1/w of this pixel
+		z_buffer[(window_width * y) + x] = interpolated_reciprocal_w;
+	}
+
+}
+
 // scanline based fill
 // using flat-bottom/flat-top method
 /*
@@ -92,41 +126,152 @@ void fill_flat_top_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint
 //
 ///////////////////////////////////////////////////////////////////////////////
 */
-void draw_filled_triangle(int x0, int y0, int x1, int y1 ,int x2, int y2, uint32_t color){
+void draw_filled_triangle(
+	int x0, int y0, float z0, float w0,
+	int x1, int y1, float z1, float w1,
+	int x2, int y2, float z2, float w2,
+	uint32_t color
+){
 	
-	// sort the verts by y
+	// TODO: use zbuffer
+
+	// we need to sort the verts by the y-coord ascending (y0 < y1 < y2)
 	if (y0 > y1) {
         int_swap(&y0, &y1);
         int_swap(&x0, &x1);
+        float_swap(&z0, &z1);
+        float_swap(&w0, &w1);
     }
     if (y1 > y2) {
         int_swap(&y1, &y2);
         int_swap(&x1, &x2);
+        float_swap(&z1, &z2);
+        float_swap(&w1, &w2);
     }
     if (y0 > y1) {
         int_swap(&y0, &y1);
         int_swap(&x0, &x1);
+        float_swap(&z0, &z1);
+        float_swap(&w0, &w1);
     }
 
-	// since it already has a flat side is flat, we can just render this and end
-	if(y1 == y2){
-		// draw flat bottom
-		fill_flat_bottom_triangle(x0, y0, x1, y1, x2, y2, color);
-	} else if (y0 == y1){
-		// draw flat top
-		fill_flat_top_triangle(x0, y0, x1, y1, x2, y2, color);
-	} else {
-		// find the mid x using triangle similarity
-		int My = y1;
-		int Mx = ( (float)((x2 - x0) * (y1 - y0)) / (float)(y2-y0) ) + x0;
-		
-		// draw flat bottom
-		fill_flat_bottom_triangle(x0, y0, x1, y1, Mx, My, color);
+    // create vecs and tex coords from the points
+    vec4_t point_a = {x0, y0, z0, w0};
+    vec4_t point_b = {x1, y1, z1, w1};
+    vec4_t point_c = {x2, y2, z2, w2};
 
-		// draw flat top
-		fill_flat_top_triangle(x1, y1, Mx, My, x2, y2, color);
+
+    ////////////////////////////////////////////////////////
+    // Render the upper part of the triangle (flat-bottom)
+    ////////////////////////////////////////////////////////
+
+	// left and right legs
+    float inv_slope_1 = 0;
+    float inv_slope_2 = 0;
+
+    int delta_x1 = x1 - x0;
+    int delta_y1 = y1 - y0;
+    int delta_x2 = x2 - x0;
+    int delta_y2 = y2 - y0;
+    // ensure there are no zero division issues and the values are floats
+    if(delta_y1 != 0) inv_slope_1 = (float)delta_x1 / abs(delta_y1);
+    if(delta_y2 != 0) inv_slope_2 = (float)delta_x2 / abs(delta_y2);
+
+    if(delta_y1 != 0){
+
+	    for(int y = y0; y <= y1; y++){
+	    	// find the line start and end for the x scanline
+	    	int x_start = x1 + (y - y1) * inv_slope_1;
+	    	int x_end = x0 + (y - y0) * inv_slope_2;
+
+	    	// swap if x_start is to the right of x_end
+	    	if(x_end < x_start){
+	    		int_swap(&x_start, &x_end);
+	    	}
+
+	    	for(int x = x_start; x < x_end; x ++){
+	    		// use texutre coords to draw pixel
+	    		draw_triangle_pixel(x, y, color, point_a, point_b, point_c);
+	    	}
+
+	    }
 	}
+
+	////////////////////////////////////////////////////////
+    // Render the bottom part of the triangle (flat-top)
+    ////////////////////////////////////////////////////////
+
+	// left and right legs
+    inv_slope_1 = 0;
+    inv_slope_2 = 0;
+
+    // these change
+    delta_x1 = x2 - x1;
+    delta_y1 = y2 - y1;
+    // these are pretty much same
+    delta_x2 = x2 - x0;
+    delta_y2 = y2 - y0;
+    // ensure there are no zero division issues and the values are floats
+    if(delta_y1 != 0) inv_slope_1 = (float)delta_x1 / abs(delta_y1);
+    if(delta_y2 != 0) inv_slope_2 = (float)delta_x2 / abs(delta_y2);
+
+    if(delta_y1 != 0){
+
+	    for(int y = y1; y <= y2; y++){
+	    	// find the line start and end for the x scanline
+	    	int x_start = x1 + (y - y1) * inv_slope_1;
+	    	int x_end = x0 + (y - y0) * inv_slope_2;
+
+	    	// swap if x_start is to the right of x_end
+	    	if(x_end < x_start){
+	    		int_swap(&x_start, &x_end);
+	    	}
+
+	    	for(int x = x_start; x < x_end; x ++){
+	    		// use texutre coords to draw pixel
+	    		draw_triangle_pixel(x, y, color, point_a, point_b, point_c);
+	    	}
+
+	    }
+	}
+
+
 }
+// ORIGNINAL METHOD
+//void draw_filled_triangle(int x0, int y0, int x1, int y1 ,int x2, int y2, uint32_t color){	
+	// // sort the verts by y
+	// if (y0 > y1) {
+    //     int_swap(&y0, &y1);
+    //     int_swap(&x0, &x1);
+    // }
+    // if (y1 > y2) {
+    //     int_swap(&y1, &y2);
+    //     int_swap(&x1, &x2);
+    // }
+    // if (y0 > y1) {
+    //     int_swap(&y0, &y1);
+    //     int_swap(&x0, &x1);
+    // }
+
+	// // since it already has a flat side is flat, we can just render this and end
+	// if(y1 == y2){
+	// 	// draw flat bottom
+	// 	fill_flat_bottom_triangle(x0, y0, x1, y1, x2, y2, color);
+	// } else if (y0 == y1){
+	// 	// draw flat top
+	// 	fill_flat_top_triangle(x0, y0, x1, y1, x2, y2, color);
+	// } else {
+	// 	// find the mid x using triangle similarity
+	// 	int My = y1;
+	// 	int Mx = ( (float)((x2 - x0) * (y1 - y0)) / (float)(y2-y0) ) + x0;
+		
+	// 	// draw flat bottom
+	// 	fill_flat_bottom_triangle(x0, y0, x1, y1, Mx, My, color);
+
+	// 	// draw flat top
+	// 	fill_flat_top_triangle(x1, y1, Mx, My, x2, y2, color);
+	// }
+//}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -194,8 +339,17 @@ void draw_texel(
 	int tex_x = abs((int)(interpolated_u * texture_width)) % texture_width; // use modulo to ensure it isn't ever outside the range of texture
 	int tex_y = abs((int)(interpolated_v * texture_height)) % texture_height;
 
-	draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
+	// adjust the recip_w so the pixels that are closer to camera have smaller values
+	// so the next check works better
+	interpolated_reciprocal_w = 1.0 - interpolated_reciprocal_w;
 
+	// only draw the pixel if the depth value if the depth value is less than what was stored previously stored in the z-buffer
+	if(interpolated_reciprocal_w < z_buffer[(window_width * y) + x]){
+		draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
+
+		// update the z_buffer with the 1/w of this pixel
+		z_buffer[(window_width * y) + x] = interpolated_reciprocal_w;
+	}
 }
 
 

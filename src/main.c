@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <SDL2/SDL.h>
 #include "array.h"
+#include "camera.h"
 #include "display.h"
 #include "light.h"
 #include "matrix.h"
@@ -26,11 +27,15 @@ triangle_t triangles_to_render[MAX_TRIANGLES_PER_MESH];
 // all the tris loaded from the mesh
 int num_triangles_to_render = 0;
 
-vec3_t camera_position = { 0, 0, 0 };
+
+mat4_t world_matrix;
 mat4_t proj_matrix;
+mat4_t view_matrix;
+
 
 bool is_running = false;
 int previous_frame_time = 0;
+float delta_time = 0;
 
 
 void arr_swap(triangle_t* arr, int i, int j){
@@ -109,17 +114,17 @@ void setup(void) {
     //load_cube_mesh_data();
     //load_obj_file_data("./assets/suzanne.obj");
     //load_obj_file_data("./assets/cube.obj");
-    //load_obj_file_data("./assets/f22.obj");
+    load_obj_file_data("./assets/f22.obj");
     //load_obj_file_data("./assets/crab.obj");
-    load_obj_file_data("./assets/drone.obj");
+    //load_obj_file_data("./assets/drone.obj");
     //load_obj_file_data("./assets/efa.obj");
     //load_obj_file_data("./assets/f117.obj");
     //load_obj_file_data("./assets/pikuma.obj");
 
     //load_png_texture_data("./assets/cube.png");
-    //load_png_texture_data("./assets/f22.png");
+    load_png_texture_data("./assets/f22.png");
     //load_png_texture_data("./assets/crab.png");
-    load_png_texture_data("./assets/drone.png");
+    //load_png_texture_data("./assets/drone.png");
     //load_png_texture_data("./assets/efa.png");
     //load_png_texture_data("./assets/f117.png");
     //load_png_texture_data("./assets/pikuma.png");
@@ -180,8 +185,34 @@ void process_input(void){
     if(event.key.keysym.sym == SDLK_c){
         cull_method = CULL_BACKFACE;
     }
-    if(event.key.keysym.sym == SDLK_d){
+    if(event.key.keysym.sym == SDLK_x){
         cull_method = CULL_NONE;
+    }
+    if(event.key.keysym.sym == SDLK_w){
+        // forward
+        camera.forward_velocity = vec3_mul(camera.direction, 5.0 * delta_time);
+        camera.position = vec3_add(camera.position, camera.forward_velocity);
+    }
+    if(event.key.keysym.sym == SDLK_s){
+        // back
+        camera.forward_velocity = vec3_mul(camera.direction, 5.0 * delta_time);
+        camera.position = vec3_sub(camera.position, camera.forward_velocity);
+    }
+    if(event.key.keysym.sym == SDLK_a){
+        // left
+        camera.yaw_angle += 1.0 * delta_time; // rads per sec
+    }
+    if(event.key.keysym.sym == SDLK_d){
+        // right
+        camera.yaw_angle -= 1.0 * delta_time; // rads per sec
+    }
+    if(event.key.keysym.sym == SDLK_UP){
+        // move camera up
+        camera.position.y += 3.0 * delta_time;
+    }
+    if(event.key.keysym.sym == SDLK_DOWN){
+        // move camera down
+        camera.position.y -= 3.0 * delta_time;
     }
     default:
         break;
@@ -198,22 +229,37 @@ void update(void) {
         SDL_Delay(time_to_wait);
     }
 
+    // get delta time factor converted to seconds to be used to update game objects
+    delta_time = (SDL_GetTicks() - previous_frame_time) / 1000.0;
+
     previous_frame_time = SDL_GetTicks();
 
     // reset tri render tracker
     num_triangles_to_render = 0;
 
     // change values per frame
-    //mesh.rotation.x += 0.02;
-    mesh.rotation.y += 0.04;
-    //mesh.rotation.z += 0.006;
-    //mesh.scale.x += 0.002;
-    //mesh.scale.y += 0.002;
-    //mesh.scale.z += 0.002;
-    //mesh.translation.x += 0.01;
+    mesh.rotation.x += 0.5 * delta_time;
+    mesh.rotation.y += 0.4 * delta_time;
+    mesh.rotation.z += 0.6 * delta_time;
+    //mesh.scale.x += 0.002 * delta_time;
+    //mesh.scale.y += 0.002 * delta_time;
+    //mesh.scale.z += 0.002 * delta_time;
+    //mesh.translation.x += 0.01 * delta_time;
+    
     // move back 5 units from camera
     mesh.translation.z = 5.0;
-    
+
+    // create a view matrix
+    vec3_t up_direction = { 0, 1, 0 };
+    // init target looking at the pos z-axis
+    vec3_t target = { 0, 0, 1 };
+    mat4_t camera_yaw_rotation = mat4_make_rotation_y(camera.yaw_angle);
+    camera.direction = vec3_from_vec4(mat4_mul_vec4(camera_yaw_rotation, vec4_from_vec3(target)));
+
+    // offset the camera pos in the dir where the cam is pointing
+    target = vec3_add(camera.position, camera.direction);
+
+    view_matrix = mat4_look_at(camera.position, target, up_direction);
 
     // create a scale matrix that will be used to mult the scale
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -242,7 +288,7 @@ void update(void) {
             vec4_t transformed_vert = vec4_from_vec3(face_verts[j]);
 
             // create a world matrix to combine, tx, rx, and sx
-            mat4_t world_matrix = mat4_identity();
+            world_matrix = mat4_identity();
             // order matters, so world is 2nd item applies to -->
             // and order matters for the matrix so sx, rx, then tx since matrix math is not cumulative
             // [T]*[R]*[S]*v
@@ -252,7 +298,11 @@ void update(void) {
             world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
             world_matrix = mat4_mul_mat4(translation_matrix, world_matrix);
 
+            // multiply the world matrix by the original vector
             transformed_vert = mat4_mul_vec4(world_matrix, transformed_vert);
+
+            // multiply the view matrix by the vector to transform scene to camera space
+            transformed_vert = mat4_mul_vec4(view_matrix, transformed_vert);
 
             // store for culling and projection
             transformed_verticies[j] = transformed_vert;
@@ -277,7 +327,8 @@ void update(void) {
         vec3_normalize_fast(&normal);
 
         // get vec to camera
-        vec3_t camera_ray = vec3_sub(camera_position, va);
+        vec3_t origin = { 0, 0, 0 };
+        vec3_t camera_ray = vec3_sub(origin, va);
         // get the dot to the camera
         float dot_normal_cam = vec3_dot(normal, camera_ray);
 
@@ -422,7 +473,7 @@ void render(void) {
     }
 
     render_color_buffer();
-    clear_color_buffer(0xFFFFFF00);
+    clear_color_buffer(0xFF222222);
     clear_z_buffer();
 
     SDL_RenderPresent(renderer);

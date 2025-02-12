@@ -13,6 +13,7 @@
 #include "triangle.h"
 #include "vector.h"
 #include "upng.h"
+#include "clipping.h"
 
 #ifndef M_PI
 #define M_PI           3.14159265358979323846
@@ -101,9 +102,12 @@ void setup(void) {
     // init perspective projection matrix
     float fov = M_PI / 3.0;   // same as 180/3 or 60 degress;
     float aspect = (float)window_height / (float)window_width;
-    float znear = 0.1;
-    float zfar = 100.0;
-    proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
+    float z_near = 0.1;
+    float z_far = 100.0;
+    proj_matrix = mat4_make_perspective(fov, aspect, z_near, z_far);
+
+    // init frustom planes
+    init_frustum_planes(fov, z_near, z_far);
 
     // manually load tex data
     // mesh_texture = (uint32_t*)REDBRICK_TEXTURE;
